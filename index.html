@@ -16,7 +16,7 @@ h1{font-size:2rem;margin:0 0 7px}.intro{margin:0;font-weight:600}.muted{color:#6
 input,select{width:100%;height:48px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;padding:0 13px;font-size:1.05rem;color:#172033}input:focus,select:focus{border-color:var(--orange);outline:0;box-shadow:0 0 0 3px rgba(255,102,0,.18)}
 .sectorHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.sectorNo{font-weight:820}.remove,.secondary{border:0;background:#fff0e5;color:#913b00;border-radius:10px;padding:10px 12px;font-weight:760}
 .result{margin-top:12px;min-height:61px;border-radius:13px;background:#fff4ec;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}.route{font-weight:800}.detail{font-size:.82rem;color:#667085;margin-top:4px}.pay{font-size:1.2rem;font-weight:850;color:#a33d00;white-space:nowrap}
-.add{width:100%;min-height:54px;border:0;border-radius:15px;background:var(--orange);color:#261500;font-size:1rem;font-weight:820;margin:4px 0 10px}.entry-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.duty-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.duty-btn{min-height:64px;border:0;border-radius:14px;background:#fff0e5;color:#713000;font-weight:800;padding:10px}.day-label{font-weight:850;margin:14px 2px 7px;color:#667085}.inline-night{background:#fff4ec;border:2px solid #ff6600;border-radius:16px;padding:14px;margin:12px 0}.inline-night strong{color:#a33d00;font-size:1.2rem}
+.add{width:100%;min-height:54px;border:0;border-radius:15px;background:var(--orange);color:#261500;font-size:1rem;font-weight:820;margin:4px 0 10px}.entry-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.duty-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.duty-btn{min-height:64px;border:0;border-radius:14px;background:#fff0e5;color:#713000;font-weight:800;padding:10px}.day-label{font-weight:850;margin:14px 2px 7px;color:#667085}.inline-night{background:#fff4ec;border:2px solid #ff6600;border-radius:16px;padding:14px;margin:12px 0}.inline-night strong{color:#a33d00;font-size:1.2rem}.duty-date{margin:10px 0}.duty-card{border-top:1px solid #eaecf0;padding:12px 0}.duty-summary{width:100%;border:0;background:#fff4ec;border-radius:12px;padding:12px;text-align:left;font-weight:800;color:#713000}.duty-detail{padding:10px 6px}.duty-detail[hidden]{display:none!important}
 .summary{display:grid;grid-template-columns:1fr 1.25fr;gap:10px}.stat{background:#fff4ec;border-radius:14px;padding:13px}.stat span{display:block;color:#667085;font-size:.75rem;font-weight:750}.stat strong{display:block;font-size:1.5rem;color:#a33d00;margin-top:4px}
 .saved{border-top:1px solid #eaecf0;padding:12px 0}.actions{display:flex;gap:8px;margin-top:8px}.actions button{flex:1}
 [hidden]{display:none!important}input[type=date],input[type=month]{-webkit-appearance:none;appearance:none}.note{font-size:.82rem;line-height:1.45}.brand-note{text-align:center;color:#795c4c;font-size:.75rem;margin-top:18px}
@@ -33,7 +33,7 @@ input,select{width:100%;height:48px;border:1px solid #d0d5dd;border-radius:12px;
 </div></section>
 
 <p class="muted note">Great-circle distance estimates, rounded to whole NM. Check against your employer’s payable distances.</p>
-<section class="card" id="dutyChooser"><h2>Choose duty</h2><div class="duty-grid">
+<section class="card" id="dutyChooser"><h2>Choose duty</h2><div class="duty-date"><label>DATE (OPTIONAL)</label><input id="dutyDate" type="date"><p class="muted note">Leave blank to calculate without a date. Night-stop duties automatically use the following day for Day 2.</p></div><div class="duty-grid">
 <button class="duty-btn" data-duty="2">2 Sector Day</button><button class="duty-btn" data-duty="4">4 Sector Day</button>
 <button class="duty-btn" data-duty="1-1">Night Stop<br>1 sector up · 1 down</button><button class="duty-btn" data-duty="3-3">Night Stop<br>3 sectors up · 3 down</button>
 <button class="duty-btn" data-duty="1-3">Night Stop<br>1 sector up · 3 down</button><button class="duty-btn" data-duty="3-1">Night Stop<br>3 sectors up · 1 down</button>
@@ -41,7 +41,7 @@ input,select{width:100%;height:48px;border:1px solid #d0d5dd;border-radius:12px;
 <section id="sectors"></section>
 
 <section class="card"><div class="summary"><div class="stat"><span>CALCULATED</span><strong id="sectorCount">0</strong></div><div class="stat"><span>TOTAL PAY</span><strong id="totalPay">£0.00</strong></div></div></section>
-<section class="card"><button id="saveFlights" class="add" type="button">Save dated flights</button><p id="flightMsg" class="muted note"></p><p class="muted note">Saved in Safari on this device.</p></section>
+<section class="card"><button id="saveFlights" class="add" type="button">Save Duty</button><p id="flightMsg" class="muted note"></p><p class="muted note">Saved in Safari on this device.</p></section>
 
 <section class="card" id="nightForm" hidden style="display:none">
 <h2>Night stop</h2><p class="muted note">CPT/FO: two nominal sectors. CM/FA/Probationary FA: £36.07. £25 per night is treated as tax/NI exempt in this calculator.</p>
@@ -80,7 +80,8 @@ CPH:["Copenhagen",55.618,12.6508],ARN:["Stockholm Arlanda",59.6519,17.9186],GOT:
 CAI:["Cairo",30.1219,31.4056],HRG:["Hurghada",27.1783,33.7994],SSH:["Sharm El Sheikh",27.9773,34.395],RAK:["Marrakech",31.6069,-8.0363],AGA:["Agadir",30.325,-9.4131],TUN:["Tunis",36.851,10.2272],AQJ:["Aqaba",29.6116,35.0181],TLV:["Tel Aviv",32.0114,34.8867],BOJ:["Burgas",42.5696,27.5152],EFL:["Kefalonia",38.1201,20.5005],GIB:["Gibraltar",36.1512,-5.3497],JSI:["Skiathos",39.1771,23.5037],KLX:["Kalamata",37.0683,22.0255],KTT:["Kittila",67.701,24.8468],LJU:["Ljubljana",46.2237,14.4576],RVN:["Rovaniemi",66.5648,25.8304],SID:["Sal",16.7414,-22.9494],VAR:["Varna",43.2321,27.8251]
 };
 var ranks={CPT:{rate:47.93},FO:{rate:28.73},CM:{rate:25.67,pub:[20.54,30.80,38.51,64.18,77.01]},FA:{rate:21.56,pub:[17.25,25.87,32.34,53.90,64.68]},PFA:{rate:14.68,pub:[11.74,17.62,22.02,36.70,44.04]}};
-var $=function(id){return document.getElementById(id)},host=$("sectors"),ledger={flights:[],nights:[]},key="sectorPayLedgerV2",editNight="";
+var $=function(id){return document.getElementById(id)},host=$("sectors"),ledger={flights:[],nights:[],duties:[]},key="sectorPayLedgerV2",editNight="",activeDuty="";
+function nextDate(d){if(!d)return"";var x=new Date(d+"T12:00:00");x.setDate(x.getDate()+1);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")}
 function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function money(n){return"£"+(Math.round((n+Number.EPSILON)*100)/100).toFixed(2)}function code(s){return String(s||"").trim().toUpperCase().replace(/[^A-Z]/g,"").slice(0,3)}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
@@ -88,7 +89,7 @@ function dist(a,b){var r=Math.PI/180,dp=(b[1]-a[1])*r,dl=(b[2]-a[2])*r,h=Math.si
 function band(n,rank){var i=n<=400?0:n<=1000?1:n<=1500?2:(ranks[rank].pub&&n>=1831?4:3);return{i:i,f:[.8,1.2,1.5,2.5,3][i]}}
 function pay(n,rank,rate){var b=band(n,rank),r=ranks[rank];return r.pub&&Number(rate)===r.rate?r.pub[b.i]:Math.round(rate*b.f*100)/100}
 function save(){localStorage.setItem(key,JSON.stringify(ledger))}
-try{var old=JSON.parse(localStorage.getItem(key)||"null");if(old&&Array.isArray(old.flights)){ledger=old;if(!ledger.nights)ledger.nights=[]}}catch(e){}
+try{var old=JSON.parse(localStorage.getItem(key)||"null");if(old&&Array.isArray(old.flights)){ledger=old;if(!ledger.nights)ledger.nights=[];if(!ledger.duties)ledger.duties=[]}}catch(e){}
 function addSector(from,to,date,rec){var c=document.createElement("section");c.className="card sector";c.dataset.id=rec?rec.id:"";c.innerHTML='<div class="sectorHead"><div class="sectorNo"></div><button class="remove" type="button">Remove</button></div><label>FLIGHT DATE</label><input class="date" type="date" value="'+(date||today())+'"><div class="grid" style="margin-top:12px"><div><label>FROM</label><input class="from" list="airportList" maxlength="3"></div><div><label>TO</label><input class="to" list="airportList" maxlength="3"></div></div><div class="result"></div>';c.querySelector(".from").value=from||"";c.querySelector(".to").value=to||"";host.appendChild(c);update()}
 function dayLabel(txt){var d=document.createElement("div");d.className="day-label";d.textContent=txt;host.appendChild(d)}
 function inlineNight(){
@@ -98,12 +99,12 @@ function inlineNight(){
 }
 function updateInlineNight(){var el=$("inlineNightPay");if(!el)return;var r=$("rank").value,rt=Number($("rate").value),p=(r==="CPT"||r==="FO")?rt*2:36.07,ex=Math.min(25,p);el.textContent=money(p);$("inlineNightDetail").textContent=money(ex)+" tax/NI exempt"}
 function loadDuty(kind){
- host.innerHTML="";
- var base=$("base").value,parts=kind.split("-"),up=0,down=0,isNight=parts.length===2;
+ host.innerHTML="";activeDuty=kind;
+ var base=$("base").value,parts=kind.split("-"),up=0,down=0,isNight=parts.length===2,d=$("dutyDate").value||"";
  if(isNight){up=Number(parts[0]);down=Number(parts[1])}else up=Number(kind);
  dayLabel(isNight?"Day 1":"Sectors");
- for(var i=0;i<up;i++)addSector(i===0?base:"","",today());
- if(isNight){inlineNight();dayLabel("Day 2");for(var j=0;j<down;j++)addSector("","",today())}
+ for(var i=0;i<up;i++)addSector(i===0?base:"","",d);
+ if(isNight){inlineNight();if($("inlineNightDate"))$("inlineNightDate").value=d||"";dayLabel("Day 2");for(var j=0;j<down;j++)addSector("","",nextDate(d))}
  wireRouteFlow();update()
 }
 function wireRouteFlow(){
@@ -117,8 +118,14 @@ function tax(income,region){income=Math.max(0,income);var t=Math.max(0,income-al
 function niMonthly(p){return Math.max(0,Math.min(p,4189)-1048)*.08+Math.max(0,p-4189)*.02}
 function deductions(salary,extra,region){var annualExtra=extra*12;return{tax:Math.max(0,(tax(salary+annualExtra,region)-tax(salary,region))/12),ni:Math.max(0,niMonthly(salary/12+extra)-niMonthly(salary/12))}}
 function renderMonth(){var m=$("month").value,fs=ledger.flights.filter(f=>f.date.slice(0,7)===m),ns=ledger.nights.filter(n=>n.date.slice(0,7)===m),fg=fs.reduce((s,f)=>s+f.pay,0),ng=ns.reduce((s,n)=>s+n.pay,0),ex=ns.reduce((s,n)=>s+n.exempt,0),gross=fg+ng,taxable=Math.max(0,gross-ex);$("monthGross").textContent=money(gross);$("monthBreakdown").textContent=fs.length+" sectors: "+money(fg)+" · "+ns.length+" night stops: "+money(ng)+" · Tax/NI-exempt: "+money(ex)+" · Taxable extra: "+money(taxable);var sal=Number($("salary").value);if($("salary").value!==""&&isFinite(sal)&&sal>=0){var d=deductions(sal,taxable,$("region").value);$("monthNet").textContent=money(gross-d.tax-d.ni);$("deductions").textContent="Estimated Income Tax: "+money(d.tax)+" · Employee NI: "+money(d.ni)}else{$("monthNet").textContent="—";$("deductions").textContent="Enter your annual basic salary to estimate take-home pay."}
-$("savedFlights").innerHTML=fs.length?"<h3>Saved flights</h3>"+fs.map(f=>'<div class="saved"><strong>'+f.date+" · "+f.from+" → "+f.to+'</strong><div class="detail">'+f.rank+" · "+f.nm+" NM · "+money(f.pay)+'</div><div class="actions"><button class="secondary" data-edit="'+f.id+'">Edit</button><button class="secondary" data-del="'+f.id+'">Delete</button></div></div>').join(""):'<p class="muted">No saved flights this month.</p>';
-$("savedNights").innerHTML=ns.length?"<h3>Saved night stops</h3>"+ns.map(n=>'<div class="saved"><strong>'+n.date+" · "+(n.location||"Night stop")+'</strong><div class="detail">'+n.rank+" · "+money(n.pay)+" gross · "+money(n.exempt)+' exempt</div><div class="actions"><button class="secondary" data-nedit="'+n.id+'">Edit</button><button class="secondary" data-ndel="'+n.id+'">Delete</button></div></div>').join(""):'<p class="muted">No saved night stops this month.</p>'}
+var ds=(ledger.duties||[]).filter(function(d){return d.date.slice(0,7)===m});
+$("savedFlights").innerHTML=ds.length?"<h3>Saved duties</h3>"+ds.map(function(d){
+ var df=ledger.flights.filter(function(f){return f.dutyId===d.id}),dn=ledger.nights.find(function(n){return n.dutyId===d.id}),label=d.type.indexOf("-")>-1?"Night Stop Duty":d.type+" Sector Duty";
+ var detail=df.map(function(f){return '<div class="saved"><strong>'+f.date+" · "+f.from+" → "+f.to+'</strong><div class="detail">'+f.nm+" NM · "+money(f.pay)+'</div></div>'}).join("");
+ if(dn)detail+='<div class="saved"><strong>'+dn.date+" · Night stop"+(dn.location?" · "+dn.location:"")+'</strong><div class="detail">'+money(dn.pay)+" gross · "+money(dn.exempt)+" exempt</div></div>";
+ return '<div class="duty-card"><button class="duty-summary" data-toggle-duty="'+d.id+'">'+d.date+" · "+label+" · "+money(d.total)+'</button><div class="duty-detail" id="duty-'+d.id+'" hidden>'+detail+'<div class="actions"><button class="secondary" data-duty-del="'+d.id+'">Delete Duty</button></div></div></div>'
+}).join(""):(fs.length?'<h3>Saved flights</h3>'+fs.map(function(f){return '<div class="saved"><strong>'+f.date+" · "+f.from+" → "+f.to+'</strong><div class="detail">'+f.rank+" · "+f.nm+" NM · "+money(f.pay)+'</div></div>'}).join(""):'<p class="muted">No saved duties this month.</p>');
+var legacyNs=ns.filter(function(n){return !n.dutyId});$("savedNights").innerHTML=legacyNs.length?"<h3>Saved night stops</h3>"+legacyNs.map(function(n){return '<div class="saved"><strong>'+n.date+" · "+(n.location||"Night stop")+'</strong><div class="detail">'+n.rank+" · "+money(n.pay)+" gross · "+money(n.exempt)+" exempt</div></div>"}).join(""):""}
 function nightCalc(){var r=$("nightRank").value,rt=Number($("nightRate").value),p=(r==="CPT"||r==="FO")?rt*2:36.07;return{pay:Math.round(p*100)/100,exempt:Math.min(25,p)}}
 function preview(){var a=nightCalc();$("nightRate").disabled=["CM","FA","PFA"].includes($("nightRank").value);$("nightPreview").textContent=money(a.pay)+" gross · "+money(a.exempt)+" tax/NI exempt"}
 function showNight(n){editNight=n?n.id:"";$("nightDate").value=n?n.date:today();$("nightLocation").value=n?n.location:"";$("nightRank").value=n?n.rank:$("rank").value;$("nightRate").value=n?n.rate:Number($("rate").value);$("nightForm").hidden=false;preview();$("nightForm").scrollIntoView({behavior:"smooth"})}
@@ -128,9 +135,19 @@ document.addEventListener("click",function(e){var b=e.target.closest("button");i
 if(b.dataset.duty){loadDuty(b.dataset.duty);return}
 if(b.id==="addSector"){var last=host.lastElementChild,to=last?code(last.querySelector(".to").value):"",base=$("base").value,date=last?last.querySelector(".date").value:today();addSector(to&&to!==base?to:base,to&&to!==base?base:"",date);return}
 if(b.classList.contains("remove")){b.closest(".sector").remove();update();return}
-if(b.id==="saveFlights"){var cs=[...host.querySelectorAll(".sector")],items=cs.map(cardData);if(!items.length||items.some(x=>!x)){$("flightMsg").textContent="Complete every sector first.";return}items.forEach(function(f,i){var k=ledger.flights.findIndex(x=>x.id===f.id);if(k<0)ledger.flights.push(f);else ledger.flights[k]=f;cs[i].dataset.id=f.id});save();$("month").value=items[0].date.slice(0,7);renderMonth();$("flightMsg").textContent="Saved "+items.length+" sector(s).";return}
+if(b.id==="saveFlights"){
+ var cs=[...host.querySelectorAll(".sector")],items=cs.map(cardData);
+ if(!items.length||items.some(function(x){return !x})){$("flightMsg").textContent="Complete every sector first. Add a date before saving.";return}
+ var dutyId=uid(),nightEl=$("inlineNightPay"),night=null;
+ if(nightEl){var nr=$("rank").value,nrt=Number($("rate").value),np=(nr==="CPT"||nr==="FO")?nrt*2:36.07;night={id:uid(),date:$("inlineNightDate").value||items[0].date,location:$("inlineNightLocation").value.trim(),rank:nr,rate:nrt,pay:Math.round(np*100)/100,exempt:Math.min(25,np),dutyId:dutyId};ledger.nights.push(night)}
+ items.forEach(function(f){f.dutyId=dutyId;ledger.flights.push(f)});
+ var total=items.reduce(function(a,f){return a+f.pay},0)+(night?night.pay:0);
+ ledger.duties.push({id:dutyId,type:activeDuty||String(items.length),date:items[0].date,sectorIds:items.map(function(f){return f.id}),nightId:night?night.id:"",total:Math.round(total*100)/100});
+ save();$("month").value=items[0].date.slice(0,7);host.innerHTML="";activeDuty="";$("dutyDate").value="";update();renderMonth();$("flightMsg").textContent="Duty saved. Choose your next duty.";return}
 if(b.id==="addNight"||b.id==="newNight"){showNight();return}
 if(b.id==="saveNight"){var d=$("nightDate").value;if(!d){$("nightMsg").textContent="Enter a date.";return}var a=nightCalc(),n={id:editNight||uid(),date:d,location:$("nightLocation").value.trim(),rank:$("nightRank").value,rate:Number($("nightRate").value),pay:a.pay,exempt:a.exempt},k=ledger.nights.findIndex(x=>x.id===n.id);if(k<0)ledger.nights.push(n);else ledger.nights[k]=n;editNight=n.id;save();$("month").value=d.slice(0,7);renderMonth();$("nightMsg").textContent="Night stop saved.";return}
+if(b.dataset.toggleDuty){var el=$("duty-"+b.dataset.toggleDuty);if(el)el.hidden=!el.hidden;return}
+if(b.dataset.dutyDel){var id=b.dataset.dutyDel;ledger.flights=ledger.flights.filter(function(x){return x.dutyId!==id});ledger.nights=ledger.nights.filter(function(x){return x.dutyId!==id});ledger.duties=ledger.duties.filter(function(x){return x.id!==id});save();renderMonth();return}
 if(b.dataset.del){ledger.flights=ledger.flights.filter(x=>x.id!==b.dataset.del);save();renderMonth();return}
 if(b.dataset.ndel){ledger.nights=ledger.nights.filter(x=>x.id!==b.dataset.ndel);save();renderMonth();return}
 if(b.dataset.edit){var f=ledger.flights.find(x=>x.id===b.dataset.edit);if(f){$("rank").value=f.rank;$("rate").value=f.rate;host.innerHTML="";addSector(f.from,f.to,f.date,f)}return}
