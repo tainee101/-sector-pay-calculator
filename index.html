@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#ff6600">
-  <meta name="description" content="A multi-sector pay calculator for flights from and back to London Gatwick.">
+  <meta name="description" content="UK-base sector pay calculator with rank-specific rates, saved dated flights and monthly gross and estimated net totals.">
   <title>Sector Pay</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23172033'/%3E%3Cpath fill='white' d='M51 30.5 36 24V13c0-3-1.8-6-4-6s-4 3-4 6v11l-15 6.5v4L28 31v12l-6 4v3l10-2 10 2v-3l-6-4V31l15 3.5z'/%3E%3C/svg%3E">
   <style>
@@ -60,6 +60,10 @@
     .pay,.stat strong{color:#a33d00}
     .brand-note{color:#795c4c;font-size:.75rem;text-align:center;line-height:1.5;margin:18px 8px 0}
     .brand-note a{color:inherit}
+    input,select,.grid>div,.stat{min-width:0;max-width:100%}
+    input[type=date],input[type=month]{-webkit-appearance:none;appearance:none;text-transform:none}
+    .stat strong{overflow-wrap:anywhere}
+    button:focus-visible,summary:focus-visible{outline:3px solid #913b00;outline-offset:3px}
   </style>
 </head>
 <body>
@@ -72,7 +76,7 @@
 
   <section class="card" aria-label="Calculator settings">
     <div class="grid">
-      <div><label for="rate">BASE RATE (£)</label><input id="rate" type="number" inputmode="decimal" step="0.01" min="0" value="28.73"></div>
+      <div><label for="rate">BASE RATE (£)</label><input id="rate" type="number" inputmode="decimal" step="0.01" min="0" value="28.73"><label for="rank" style="margin-top:12px">RANK</label><select id="rank"><option value="CPT">Captain (CPT)</option><option value="FO" selected>First Officer (FO)</option><option value="CM">Cabin Manager (CM)</option><option value="FA">Flight Attendant (FA)</option><option value="PFA">Probationary FA</option></select></div>
       <div><label for="base">EASYJET UK BASE</label><select id="base">
         <option value="BFS">BFS — Belfast International</option>
         <option value="BHX">BHX — Birmingham</option>
@@ -89,7 +93,8 @@
     </div>
   </section>
 
-  <section id="sectors" aria-live="polite"></section>
+  <p class="muted" style="font-size:.875rem">Great-circle distance estimates, rounded to whole NM. Check against your employer’s payable distances.</p>
+  <section id="sectors"></section>
   <button id="addSector" class="add" type="button">＋ Add Sector</button>
 
   <section class="card" aria-label="Pay summary">
@@ -99,8 +104,28 @@
     </div>
   </section>
 
+  <section class="card" aria-label="Save flights">
+    <button id="saveFlights" type="button" class="add">Save dated flights</button>
+    <p id="flightMsg" class="muted" role="status"></p>
+    <p class="muted" style="font-size:.875rem">Saved only in this browser on this device. Clearing website data removes saved flights. Use the live Safari website, not a downloaded-file preview.</p>
+  </section>
+  <section class="card" aria-label="Monthly sector pay">
+    <h2 style="margin-top:0;font-size:1.3rem">Monthly sector pay</h2>
+    <label for="month">FLIGHT MONTH</label><input id="month" type="month">
+    <div class="grid" style="margin-top:14px">
+      <div><label for="tax">YOUR TAX RATE (%)</label><input id="tax" type="number" inputmode="decimal" min="0" max="100" step="0.01" placeholder="Enter percentage"></div>
+      <div><label for="ni">YOUR NI RATE (%)</label><input id="ni" type="number" inputmode="decimal" min="0" max="100" step="0.01" placeholder="Enter percentage"></div>
+    </div>
+    <div class="summary" style="margin-top:14px">
+      <div class="stat"><span>GROSS SECTOR PAY</span><strong id="monthGross">£0.00</strong></div>
+      <div class="stat"><span>ESTIMATED NET</span><strong id="monthNet">—</strong></div>
+    </div>
+    <p id="deductions" class="muted" role="status"></p>
+    <p class="muted" style="font-size:.875rem">Estimate for sector pay only, not your whole salary or a PAYE calculation. Each percentage is deducted from gross sector pay; no thresholds, allowances, pension or student-loan deductions are applied. Enter the rates applicable to your additional sector earnings. Totals use flight dates, not payroll dates.</p>
+    <div id="savedFlights"></div>
+  </section>
   <section class="card">
-    <button id="clearAll" class="secondaryAction" type="button">Clear all sectors</button>
+    <button id="clearAll" class="secondaryAction" type="button">New calculation (keep saved flights)</button>
     <details>
       <summary>Pay bands</summary>
       <table>
@@ -161,138 +186,168 @@
     SID:["Sal, Cape Verde",16.7414,-22.9494],SXB:["Strasbourg",48.5383,7.6282],SUF:["Lamezia Terme",38.9054,16.2423],VAR:["Varna",43.2321,27.8251]
   };
 
-  try{
-    var stored=JSON.parse(localStorage.getItem("sectorPayCustomAirports")||"{}");
-    Object.keys(stored).forEach(function(code){airports[code]=stored[code];});
-  }catch(ignore){}
-
-  var sectorHost=document.getElementById("sectors");
-  var rateInput=document.getElementById("rate");
-  var baseInput=document.getElementById("base");
-
-  function cleanCode(value){return String(value||"").trim().toUpperCase().replace(/[^A-Z]/g,"").slice(0,3);}
+  var ranks={
+    CPT:{rate:47.93}, FO:{rate:28.73},
+    CM:{rate:25.67,published:[20.54,30.80,38.51,64.18,77.01]},
+    FA:{rate:21.56,published:[17.25,25.87,32.34,53.90,64.68]},
+    PFA:{rate:14.68,published:[11.74,17.62,22.02,36.70,44.04]}
+  };
+  var sectorHost=document.getElementById("sectors"),rateInput=document.getElementById("rate"),baseInput=document.getElementById("base"),rankInput=document.getElementById("rank");
+  var monthInput=document.getElementById("month"),taxInput=document.getElementById("tax"),niInput=document.getElementById("ni");
+  var storeKey="sectorPayLedgerV1",ledger={flights:[],deductions:{}},storageReadable=true,serial=0;
+  function el(id){return document.getElementById(id);}
+  function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+  function validDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;}
+  function escapeHTML(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+  function cleanCode(s){return String(s||"").trim().toUpperCase().replace(/[^A-Z]/g,"").slice(0,3);}
+  function roundMoney(n){return Math.round((Number(n)+Number.EPSILON)*100)/100;}
+  function money(n){return "£"+roundMoney(n).toFixed(2);}
+  function validRate(){return rateInput.value!==""&&Number.isFinite(Number(rateInput.value))&&Number(rateInput.value)>=0;}
   function distance(a,b){
-    var radius=3440.065,rad=Math.PI/180,lat1=a[1]*rad,lat2=b[1]*rad;
-    var dLat=(b[1]-a[1])*rad,dLon=(b[2]-a[2])*rad;
-    var h=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)*Math.sin(dLon/2);
-    return Math.round(2*radius*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)));
+    var rad=Math.PI/180,dp=(b[1]-a[1])*rad,dl=(b[2]-a[2])*rad;
+    var h=Math.sin(dp/2)**2+Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dl/2)**2;
+    h=Math.min(1,Math.max(0,h));
+    return Math.round(6880.13*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)));
   }
-  function bandFor(nm){
-    if(nm<=400)return {name:"Short",factor:0.8};
-    if(nm<=1000)return {name:"Medium",factor:1.2};
-    if(nm<=1500)return {name:"Long",factor:1.5};
-    return {name:"Extra long",factor:2.5};
+  function bandFor(nm,rank){
+    var idx=nm<=400?0:nm<=1000?1:nm<=1500?2:(ranks[rank].published&&nm>=1831?4:3);
+    return {index:idx,name:["Short","Medium","Long","Extra long","Ultra long"][idx],factor:[.8,1.2,1.5,2.5,3][idx]};
   }
-  function roundMoney(value){return Math.round(((Number(value)||0)+Number.EPSILON)*100)/100;}
-  function money(value){return "£"+roundMoney(value).toFixed(2);}
-  function currentRate(){return Math.max(0,Number(rateInput.value)||0);}
-
+  function payFor(nm,rank,rate){
+    var b=bandFor(nm,rank),r=ranks[rank];
+    return r.published&&Number(rate)===r.rate?r.published[b.index]:roundMoney(Number(rate)*b.factor);
+  }
+  try{
+    var custom=JSON.parse(localStorage.getItem("sectorPayCustomAirports")||"{}");
+    Object.keys(custom).forEach(function(c){var a=custom[c];if(/^[A-Z]{3}$/.test(c)&&Array.isArray(a)&&a.length===3&&Number.isFinite(a[1])&&Number.isFinite(a[2])&&Math.abs(a[1])<=90&&Math.abs(a[2])<=180)airports[c]=a;});
+  }catch(ignore){}
+  try{
+    var saved=localStorage.getItem(storeKey);
+    if(saved){
+      var data=JSON.parse(saved);
+      if(!data||!Array.isArray(data.flights)||!data.deductions||typeof data.deductions!=="object"||
+        !data.flights.every(function(f){return f&&typeof f.id==="string"&&validDate(f.date)&&/^[A-Z]{3}$/.test(f.from)&&/^[A-Z]{3}$/.test(f.to)&&ranks[f.rank]&&Number.isFinite(f.pay)&&f.pay>=0&&Number.isFinite(f.rate)&&Number.isFinite(f.nm);}))throw Error("Invalid saved data");
+      ledger=data;
+    }
+  }catch(ignore){storageReadable=false;el("flightMsg").textContent="Saved data could not be read. Saving is disabled to protect existing records. Try your usual Safari browser.";}
+  function persist(next){
+    if(!storageReadable)return false;
+    try{localStorage.setItem(storeKey,JSON.stringify(next));ledger=next;return true;}
+    catch(ignore){el("flightMsg").textContent="Could not save to this browser. Your changes have not been saved; check storage settings or space.";return false;}
+  }
+  function uid(){serial++;return Date.now().toString(36)+"-"+serial+"-"+Math.random().toString(36).slice(2,9);}
+  function renderAirports(){el("airportList").innerHTML=Object.keys(airports).sort().map(function(c){return '<option value="'+c+'">'+escapeHTML(airports[c][0])+'</option>';}).join("");}
   function renderBands(){
-    var r=currentRate(),bands=[["400 NM or less",0.8],["401–1,000 NM",1.2],["1,001–1,500 NM",1.5],["1,501+ NM",2.5]];
-    document.getElementById("bandRows").innerHTML=bands.map(function(item){return "<tr><td>"+item[0]+"</td><td>"+item[1]+"×</td><td>"+money(r*item[1])+"</td></tr>";}).join("");
+    var cabin=!!ranks[rankInput.value].published;
+    var labels=["400 NM or less","401–1,000 NM","1,001–1,500 NM",cabin?"1,501–1,830 NM":"1,501+ NM"];
+    if(cabin)labels.push("1,831+ NM");
+    el("bandRows").innerHTML=labels.map(function(label,i){return "<tr><td>"+label+"</td><td>"+[.8,1.2,1.5,2.5,3][i]+"×</td><td>"+(validRate()?money(payFor([400,1000,1500,1830,1831][i],rankInput.value,Number(rateInput.value))):"—")+"</td></tr>";}).join("");
   }
-
-  function cardMarkup(from,to){
-    return '<div class="sectorHead"><div class="sectorNo">Sector</div><button class="remove" type="button" aria-label="Remove sector">Remove</button></div>'+
-      '<div class="grid"><div><label>FROM</label><input class="from" list="airportList" maxlength="3" inputmode="text" autocapitalize="characters" autocomplete="off" value="'+from+'"></div>'+
-      '<div><label>TO</label><input class="to" list="airportList" maxlength="3" inputmode="text" autocapitalize="characters" autocomplete="off" value="'+to+'"></div></div>'+
-      '<div class="result"><span class="muted">Enter valid airport codes</span></div>';
+  function addSector(from,to,focusNew,date,record){
+    var card=document.createElement("section"),id=uid();card.className="card sector";card.dataset.recordId=record?record.id:"";
+    card.innerHTML='<div class="sectorHead"><div class="sectorNo"></div><button class="remove" type="button">Remove</button></div>'+
+      '<label for="date-'+id+'">FLIGHT DATE</label><input class="flightDate" id="date-'+id+'" type="date" value="'+(date||today())+'">'+
+      '<div class="grid" style="margin-top:12px"><div><label for="from-'+id+'">FROM</label><input id="from-'+id+'" class="from" list="airportList" maxlength="3" autocapitalize="characters" autocomplete="off"></div>'+
+      '<div><label for="to-'+id+'">TO</label><input id="to-'+id+'" class="to" list="airportList" maxlength="3" autocapitalize="characters" autocomplete="off"></div></div><div class="result"></div>';
+    card.querySelector(".from").value=cleanCode(from);card.querySelector(".to").value=cleanCode(to);
+    sectorHost.appendChild(card);update();
+    if(focusNew){card.querySelector(to?".from":".to").focus();card.scrollIntoView({behavior:"smooth",block:"center"});}
   }
-
-  function addSector(from,to,focusNew){
-    var card=document.createElement("section");
-    card.className="card sector";
-    card.innerHTML=cardMarkup(cleanCode(from),cleanCode(to));
-    sectorHost.appendChild(card);
-    update();
-    if(focusNew){
-      var target=cleanCode(to)?card.querySelector(".from"):card.querySelector(".to");
-      target.focus({preventScroll:true});
-      card.scrollIntoView({behavior:"smooth",block:"center"});
-    }
+  function cardData(card){
+    var from=cleanCode(card.querySelector(".from").value),to=cleanCode(card.querySelector(".to").value),date=card.querySelector(".flightDate").value;
+    if(!airports[from]||!airports[to]||from===to||!validDate(date)||!validRate())return null;
+    var nm=distance(airports[from],airports[to]);
+    return {id:card.dataset.recordId||uid(),date:date,from:from,to:to,rank:rankInput.value,rate:Number(rateInput.value),nm:nm,pay:payFor(nm,rankInput.value,Number(rateInput.value))};
   }
-
-  function suggestedNextLeg(){
-    var base=cleanCode(baseInput.value)||"LGW";
-    var cards=sectorHost.querySelectorAll(".sector");
-    if(!cards.length)return [base,""];
-    var last=cards[cards.length-1],from=cleanCode(last.querySelector(".from").value),to=cleanCode(last.querySelector(".to").value);
-    if(to && to!==base)return [to,base];
-    if(to===base)return [base,""];
-    return [from||base,""];
-  }
-
   function update(){
-    var cards=sectorHost.querySelectorAll(".sector"),total=0,calculated=0;
-    for(var i=0;i<cards.length;i++){
-      var card=cards[i],fromInput=card.querySelector(".from"),toInput=card.querySelector(".to");
-      var from=cleanCode(fromInput.value),to=cleanCode(toInput.value),out=card.querySelector(".result");
-      if(fromInput.value!==from)fromInput.value=from;
-      if(toInput.value!==to)toInput.value=to;
-      card.querySelector(".sectorNo").textContent="Sector "+(i+1);
-      if(airports[from]&&airports[to]){
-        var nm=distance(airports[from],airports[to]),band=bandFor(nm),pay=currentRate()*band.factor;
-        total+=roundMoney(pay);calculated++;
-        out.innerHTML='<div><div class="route">'+from+' → '+to+'</div><div class="detail">'+nm.toLocaleString()+" NM · "+band.name+" · "+band.factor+'×</div></div><div class="pay">'+money(pay)+'</div>';
-      }else if((from&&!airports[from])||(to&&!airports[to])){
-        var missing=!airports[from]?from:to;
-        out.innerHTML='<span class="error">'+missing+' is not in the airport database.</span>';
-      }else{
-        out.innerHTML='<span class="muted">Enter valid airport codes</span>';
-      }
-    }
-    document.getElementById("sectorCount").textContent=String(calculated);
-    document.getElementById("totalPay").textContent=money(total);
-    renderBands();
+    var total=0,n=0;
+    sectorHost.querySelectorAll(".sector").forEach(function(card,i){
+      card.querySelector(".sectorNo").textContent="Sector "+(i+1)+(card.dataset.recordId?" · saved":"");
+      var f=cardData(card),out=card.querySelector(".result");
+      if(f){total+=Math.round(f.pay*100);n++;var b=bandFor(f.nm,f.rank);
+        out.innerHTML='<div><div class="route">'+f.from+' → '+f.to+'</div><div class="detail">'+f.nm.toLocaleString()+' NM · '+b.name+' · '+b.factor+'×</div></div><div class="pay">'+money(f.pay)+'</div>';
+      }else{out.innerHTML='<span class="muted">Enter a date, two different known airport codes and a valid base rate.</span>';}
+    });
+    el("totalPay").textContent=money(total/100);el("sectorCount").textContent=n;renderBands();
   }
-
-  document.addEventListener("input",function(event){
-    if(event.target.matches(".from,.to,#rate"))update();
-  });
-
+  function netAmounts(gross,tax,ni){
+    var t=roundMoney(gross*tax/100),n=roundMoney(gross*ni/100);
+    return {tax:t,ni:n,net:roundMoney(gross-t-n)};
+  }
+  function renderMonth(){
+    var flights=ledger.flights.filter(function(f){return f.date.slice(0,7)===monthInput.value;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+    var gross=flights.reduce(function(s,f){return s+Math.round(f.pay*100);},0)/100;
+    el("monthGross").textContent=money(gross);
+    var t=Number(taxInput.value),n=Number(niInput.value);
+    var valid=taxInput.value!==""&&niInput.value!==""&&Number.isFinite(t)&&Number.isFinite(n)&&t>=0&&n>=0&&t+n<=100;
+    el("monthNet").textContent=valid?money(netAmounts(gross,t,n).net):"—";
+    el("deductions").textContent=valid?flights.length+" saved sectors · Tax "+money(netAmounts(gross,t,n).tax)+" · NI "+money(netAmounts(gross,t,n).ni):"Enter both percentages (including 0 if applicable). Combined rates must be 0–100%.";
+    el("savedFlights").innerHTML=flights.length?flights.map(function(f){return '<div style="border-top:1px solid #eaecf0;padding:12px 0"><strong>'+escapeHTML(f.date)+' · '+f.from+' → '+f.to+'</strong><div class="detail">'+(f.rank==="PFA"?"Probationary FA":f.rank)+' · '+f.nm+' NM · saved rate '+money(f.rate)+' · '+money(f.pay)+'</div><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="secondaryAction" data-edit="'+escapeHTML(f.id)+'">Edit</button><button type="button" class="secondaryAction" data-delete="'+escapeHTML(f.id)+'">Delete</button></div></div>';}).join(""):'<p class="muted">No saved flights this month.</p>';
+  }
+  function loadMonth(){
+    var d=ledger.deductions[monthInput.value]||{};
+    taxInput.value=d.tax===undefined?"":d.tax;niInput.value=d.ni===undefined?"":d.ni;renderMonth();
+  }
+  function saveFlights(){
+    var cards=Array.from(sectorHost.querySelectorAll(".sector")),items=cards.map(cardData);
+    if(!items.length||items.some(function(f){return !f;})){el("flightMsg").textContent="Nothing saved. Complete every sector’s date, airport codes and base rate first.";return;}
+    var next=JSON.parse(JSON.stringify(ledger));
+    items.forEach(function(f){var i=next.flights.findIndex(function(old){return old.id===f.id;});if(i<0)next.flights.push(f);else next.flights[i]=f;});
+    if(persist(next)){
+      items.forEach(function(f,i){cards[i].dataset.recordId=f.id;});
+      monthInput.value=items[0].date.slice(0,7);loadMonth();update();
+      el("flightMsg").textContent="Saved "+items.length+" sector(s). Saving these cards again updates them without creating duplicates.";
+    }
+  }
+  rankInput.addEventListener("change",function(){rateInput.value=ranks[rankInput.value].rate.toFixed(2);update();});
+  monthInput.addEventListener("change",loadMonth);
+  function saveDeductions(){
+    renderMonth();
+    var t=Number(taxInput.value),n=Number(niInput.value);
+    if(!/^\d{4}-\d{2}$/.test(monthInput.value)||taxInput.value===""||niInput.value===""||!Number.isFinite(t)||!Number.isFinite(n)||t<0||n<0||t+n>100)return;
+    var next=JSON.parse(JSON.stringify(ledger));next.deductions[monthInput.value]={tax:t,ni:n};persist(next);
+  }
+  taxInput.addEventListener("input",renderMonth);niInput.addEventListener("input",renderMonth);
+  taxInput.addEventListener("change",saveDeductions);niInput.addEventListener("change",saveDeductions);
+  document.addEventListener("input",function(e){if(e.target.matches(".from,.to,.flightDate,#rate"))update();});
   baseInput.addEventListener("change",function(){
-    var first=sectorHost.querySelector(".sector");
-    if(first)first.querySelector(".from").value=cleanCode(baseInput.value);
-    update();
+    sectorHost.querySelectorAll(".sector").forEach(function(c){if(!c.dataset.recordId&&!c.querySelector(".to").value)c.querySelector(".from").value=baseInput.value;});update();
   });
-
-  document.addEventListener("click",function(event){
-    var removeButton=event.target.closest(".remove");
-    if(removeButton){removeButton.closest(".sector").remove();update();return;}
-    if(event.target.id==="addSector"){
-      event.preventDefault();
-      var leg=suggestedNextLeg();
-      addSector(leg[0],leg[1],true);
-      return;
+  document.addEventListener("click",function(e){
+    var b=e.target.closest("button");if(!b)return;
+    if(b.classList.contains("remove")){b.closest(".sector").remove();update();return;}
+    if(b.id==="addSector"){
+      var last=sectorHost.lastElementChild,base=baseInput.value,to=last?cleanCode(last.querySelector(".to").value):"",date=last?last.querySelector(".flightDate").value:today();
+      addSector(to&&to!==base?to:base,to&&to!==base?base:"",true,date);return;
     }
-    if(event.target.id==="clearAll"){
-      event.preventDefault();
-      sectorHost.innerHTML="";
-      addSector(cleanCode(baseInput.value)||"LGW","",false);
-      return;
+    if(b.id==="saveFlights"){saveFlights();return;}
+    if(b.id==="clearAll"){
+      if(!confirm("Start a new calculation? Unsaved changes will be discarded. Saved flights remain."))return;
+      sectorHost.innerHTML="";addSector(baseInput.value,"",false);el("flightMsg").textContent="New calculation. Saved flights are unchanged.";return;
     }
-    if(event.target.id==="saveAirport"){
-      event.preventDefault();
-      var code=cleanCode(document.getElementById("newCode").value);
-      var name=document.getElementById("newName").value.trim();
-      var lat=Number(document.getElementById("newLat").value),lon=Number(document.getElementById("newLon").value);
-      var msg=document.getElementById("saveMsg");
-      if(!/^[A-Z]{3}$/.test(code)||!name||!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){msg.textContent="Please complete all four fields with valid details.";return;}
-      airports[code]=[name,lat,lon];
-      try{
-        var custom=JSON.parse(localStorage.getItem("sectorPayCustomAirports")||"{}");
-        custom[code]=airports[code];
-        localStorage.setItem("sectorPayCustomAirports",JSON.stringify(custom));
-      }catch(ignore){}
-      msg.textContent=code+" saved. You can use it in any sector.";
-      update();
+    if(b.dataset.edit){
+      var f=ledger.flights.find(function(x){return x.id===b.dataset.edit;});if(!f)return;
+      if(!confirm("Load this saved flight for editing? This replaces the current calculation; unsaved changes will be discarded."))return;
+      rankInput.value=f.rank;rateInput.value=f.rate;sectorHost.innerHTML="";addSector(f.from,f.to,false,f.date,f);
+      el("flightMsg").textContent="Editing a saved flight. Tap Save dated flights to apply changes.";
+      sectorHost.scrollIntoView({behavior:"smooth",block:"start"});return;
+    }
+    if(b.dataset.delete){
+      if(!confirm("Delete this saved flight? This cannot be undone."))return;
+      var next=JSON.parse(JSON.stringify(ledger));next.flights=next.flights.filter(function(f){return f.id!==b.dataset.delete;});
+      if(persist(next)){
+        sectorHost.querySelectorAll(".sector").forEach(function(c){if(c.dataset.recordId===b.dataset.delete)c.remove();});
+        update();renderMonth();el("flightMsg").textContent="Saved flight deleted.";
+      }return;
+    }
+    if(b.id==="saveAirport"){
+      var code=cleanCode(el("newCode").value),name=el("newName").value.trim(),lat=Number(el("newLat").value),lon=Number(el("newLon").value);
+      if(!/^[A-Z]{3}$/.test(code)||!name||el("newLat").value===""||el("newLon").value===""||!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){el("saveMsg").textContent="Complete all four fields with valid coordinates.";return;}
+      try{var custom=JSON.parse(localStorage.getItem("sectorPayCustomAirports")||"{}");custom[code]=[name,lat,lon];localStorage.setItem("sectorPayCustomAirports",JSON.stringify(custom));airports[code]=custom[code];el("saveMsg").textContent=code+" saved.";renderAirports();update();}
+      catch(ignore){el("saveMsg").textContent="Airport could not be saved. Check browser storage.";}
     }
   });
-
-  document.getElementById("airportList").innerHTML=Object.keys(airports).sort().map(function(code){
-    return '<option value="'+code+'">'+airports[code][0]+'</option>';
-  }).join("");
-  addSector("LGW","",false);
+  monthInput.value=today().slice(0,7);renderAirports();addSector("LGW","",false);loadMonth();
 })();
 </script>
 </body>
