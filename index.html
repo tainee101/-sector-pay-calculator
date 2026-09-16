@@ -63,6 +63,9 @@
     input,select,.grid>div,.stat{min-width:0;max-width:100%}
     input[type=date],input[type=month]{-webkit-appearance:none;appearance:none;text-transform:none}
     .stat strong{overflow-wrap:anywhere}
+    .entry-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .entry-actions .add{font-size:1rem;padding:10px 6px}
+    [hidden]{display:none!important}
     button:focus-visible,summary:focus-visible{outline:3px solid #913b00;outline-offset:3px}
   </style>
 </head>
@@ -95,7 +98,10 @@
 
   <p class="muted" style="font-size:.875rem">Great-circle distance estimates, rounded to whole NM. Check against your employer’s payable distances.</p>
   <section id="sectors"></section>
-  <button id="addSector" class="add" type="button">＋ Add Sector</button>
+  <div class="entry-actions">
+    <button id="addSector" class="add" type="button">＋ Add Sector</button>
+    <button id="addNight" class="add" type="button" aria-controls="nightStopForm" aria-expanded="false">＋ Add Night Stop</button>
+  </div>
 
   <section class="card" aria-label="Pay summary">
     <div class="summary">
@@ -109,20 +115,36 @@
     <p id="flightMsg" class="muted" role="status"></p>
     <p class="muted" style="font-size:.875rem">Saved only in this browser on this device. Clearing website data removes saved flights. Use the live Safari website, not a downloaded-file preview.</p>
   </section>
-  <section class="card" aria-label="Monthly sector pay">
-    <h2 style="margin-top:0;font-size:1.3rem">Monthly sector pay</h2>
-    <label for="month">FLIGHT MONTH</label><input id="month" type="month">
+  <section class="card" id="nightStopForm" aria-label="Night stop allowance" hidden>
+    <h2 style="margin-top:0;font-size:1.3rem">Night stops</h2>
+    <p class="muted" style="font-size:.875rem">One entry per night, dated when the night stop begins. CPT and FO: two nominal sectors. Cabin crew: £36.07. The first £25 per night is exempt from income tax and NI.</p>
+    <div class="grid">
+      <div><label for="nightDate">NIGHT-STOP DATE</label><input id="nightDate" type="date"></div>
+      <div><label for="nightLocation">LOCATION (OPTIONAL)</label><input id="nightLocation" maxlength="80" placeholder="e.g. Malaga" style="text-transform:none"></div>
+      <div><label for="nightRank">RANK</label><select id="nightRank"><option value="CPT">Captain (CPT)</option><option value="FO" selected>First Officer (FO)</option><option value="CM">Cabin Manager (CM)</option><option value="FA">Flight Attendant (FA)</option><option value="PFA">Probationary FA</option></select></div>
+      <div><label for="nightRate">NOMINAL SECTOR RATE (£)</label><input id="nightRate" type="number" min="0" step="0.01" inputmode="decimal" value="28.73"></div>
+    </div>
+    <div id="nightPreview" class="result"></div>
+    <button id="saveNight" type="button" class="add" style="margin-top:12px">Save night stop</button>
+    <button id="newNight" type="button" class="secondaryAction">New night stop</button>
+    <p id="nightMsg" class="muted" role="status"></p>
+  </section>
+  <section class="card" aria-label="Monthly sector and night-stop pay">
+    <h2 style="margin-top:0;font-size:1.3rem">Monthly pay</h2>
+    <label for="month">MONTH</label><input id="month" type="month">
     <div class="grid" style="margin-top:14px">
       <div><label for="tax">YOUR TAX RATE (%)</label><input id="tax" type="number" inputmode="decimal" min="0" max="100" step="0.01" placeholder="Enter percentage"></div>
       <div><label for="ni">YOUR NI RATE (%)</label><input id="ni" type="number" inputmode="decimal" min="0" max="100" step="0.01" placeholder="Enter percentage"></div>
     </div>
     <div class="summary" style="margin-top:14px">
-      <div class="stat"><span>GROSS SECTOR PAY</span><strong id="monthGross">£0.00</strong></div>
+      <div class="stat"><span>GROSS INCLUDING NIGHT STOPS</span><strong id="monthGross">£0.00</strong></div>
       <div class="stat"><span>ESTIMATED NET</span><strong id="monthNet">—</strong></div>
     </div>
+    <p id="monthBreakdown" class="muted"></p>
     <p id="deductions" class="muted" role="status"></p>
-    <p class="muted" style="font-size:.875rem">Estimate for sector pay only, not your whole salary or a PAYE calculation. Each percentage is deducted from gross sector pay; no thresholds, allowances, pension or student-loan deductions are applied. Enter the rates applicable to your additional sector earnings. Totals use flight dates, not payroll dates.</p>
+    <p class="muted" style="font-size:.875rem">Estimate for sector pay and night stops, not your whole salary or a PAYE calculation. Tax and NI percentages apply to sector pay plus the portion of each night stop above £25. The exempt portion is retained in net pay. No other thresholds, allowances, pension or student-loan deductions are applied. Totals use flight and night-stop dates, not payroll dates.</p>
     <div id="savedFlights"></div>
+    <div id="savedNights"></div>
   </section>
   <section class="card">
     <button id="clearAll" class="secondaryAction" type="button">New calculation (keep saved flights)</button>
@@ -194,7 +216,7 @@
   };
   var sectorHost=document.getElementById("sectors"),rateInput=document.getElementById("rate"),baseInput=document.getElementById("base"),rankInput=document.getElementById("rank");
   var monthInput=document.getElementById("month"),taxInput=document.getElementById("tax"),niInput=document.getElementById("ni");
-  var storeKey="sectorPayLedgerV1",ledger={flights:[],deductions:{}},storageReadable=true,serial=0;
+  var storeKey="sectorPayLedgerV1",ledger={flights:[],nightStops:[],deductions:{}},storageReadable=true,serial=0,editingNightId="";
   function el(id){return document.getElementById(id);}
   function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
   function validDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;}
@@ -227,6 +249,8 @@
       var data=JSON.parse(saved);
       if(!data||!Array.isArray(data.flights)||!data.deductions||typeof data.deductions!=="object"||
         !data.flights.every(function(f){return f&&typeof f.id==="string"&&validDate(f.date)&&/^[A-Z]{3}$/.test(f.from)&&/^[A-Z]{3}$/.test(f.to)&&ranks[f.rank]&&Number.isFinite(f.pay)&&f.pay>=0&&Number.isFinite(f.rate)&&Number.isFinite(f.nm);}))throw Error("Invalid saved data");
+      if(data.nightStops===undefined)data.nightStops=[];
+      if(!Array.isArray(data.nightStops)||!data.nightStops.every(function(n){return n&&typeof n.id==="string"&&validDate(n.date)&&Object.prototype.hasOwnProperty.call(ranks,n.rank)&&Number.isFinite(n.rate)&&n.rate>=0&&Number.isFinite(n.pay)&&n.pay>=0&&Number.isFinite(n.exempt)&&n.exempt>=0&&n.exempt<=n.pay&&typeof n.location==="string";}))throw Error("Invalid night-stop data");
       ledger=data;
     }
   }catch(ignore){storageReadable=false;el("flightMsg").textContent="Saved data could not be read. Saving is disabled to protect existing records. Try your usual Safari browser.";}
@@ -270,20 +294,68 @@
     });
     el("totalPay").textContent=money(total/100);el("sectorCount").textContent=n;renderBands();
   }
-  function netAmounts(gross,tax,ni){
-    var t=roundMoney(gross*tax/100),n=roundMoney(gross*ni/100);
+  function netAmounts(gross,tax,ni,exempt){
+    var taxable=Math.max(0,roundMoney(gross-(exempt||0)));
+    var t=roundMoney(taxable*tax/100),n=roundMoney(taxable*ni/100);
     return {tax:t,ni:n,net:roundMoney(gross-t-n)};
   }
   function renderMonth(){
     var flights=ledger.flights.filter(function(f){return f.date.slice(0,7)===monthInput.value;}).sort(function(a,b){return a.date.localeCompare(b.date);});
-    var gross=flights.reduce(function(s,f){return s+Math.round(f.pay*100);},0)/100;
+    var nights=ledger.nightStops.filter(function(n){return n.date.slice(0,7)===monthInput.value;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+    var sectorGross=flights.reduce(function(s,f){return s+Math.round(f.pay*100);},0)/100;
+    var nightGross=nights.reduce(function(s,n){return s+Math.round(n.pay*100);},0)/100;
+    var exempt=nights.reduce(function(s,n){return s+Math.round(n.exempt*100);},0)/100;
+    var gross=roundMoney(sectorGross+nightGross);
     el("monthGross").textContent=money(gross);
+    renderSavedNights(nights);
+    el("monthBreakdown").textContent=flights.length+" sectors: "+money(sectorGross)+" · "+nights.length+" night stops: "+money(nightGross)+" · Exempt from tax and NI: "+money(exempt)+" · Subject to tax and NI: "+money(roundMoney(gross-exempt));
     var t=Number(taxInput.value),n=Number(niInput.value);
     var valid=taxInput.value!==""&&niInput.value!==""&&Number.isFinite(t)&&Number.isFinite(n)&&t>=0&&n>=0&&t+n<=100;
-    el("monthNet").textContent=valid?money(netAmounts(gross,t,n).net):"—";
-    el("deductions").textContent=valid?flights.length+" saved sectors · Tax "+money(netAmounts(gross,t,n).tax)+" · NI "+money(netAmounts(gross,t,n).ni):"Enter both percentages (including 0 if applicable). Combined rates must be 0–100%.";
+    el("monthNet").textContent=valid?money(netAmounts(gross,t,n,exempt).net):"—";
+    el("deductions").textContent=valid?"Estimated tax "+money(netAmounts(gross,t,n,exempt).tax)+" · NI "+money(netAmounts(gross,t,n,exempt).ni):"Enter both percentages (including 0 if applicable). Combined rates must be 0–100%.";
     el("savedFlights").innerHTML=flights.length?flights.map(function(f){return '<div style="border-top:1px solid #eaecf0;padding:12px 0"><strong>'+escapeHTML(f.date)+' · '+f.from+' → '+f.to+'</strong><div class="detail">'+(f.rank==="PFA"?"Probationary FA":f.rank)+' · '+f.nm+' NM · saved rate '+money(f.rate)+' · '+money(f.pay)+'</div><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="secondaryAction" data-edit="'+escapeHTML(f.id)+'">Edit</button><button type="button" class="secondaryAction" data-delete="'+escapeHTML(f.id)+'">Delete</button></div></div>';}).join(""):'<p class="muted">No saved flights this month.</p>';
   }
+  function renderSavedNights(nights){
+    el("savedNights").innerHTML=nights.length?'<h3 style="font-size:1rem">Saved night stops</h3>'+nights.map(function(n){return '<div style="border-top:1px solid #eaecf0;padding:12px 0"><strong>'+escapeHTML(n.date)+' · Night stop'+(n.location?' · '+escapeHTML(n.location):'')+'</strong><div class="detail">'+(n.rank==='PFA'?'Probationary FA':n.rank)+' · '+money(n.pay)+' gross · '+money(n.exempt)+' exempt from tax and NI · '+money(roundMoney(n.pay-n.exempt))+' subject to tax and NI</div><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="secondaryAction" data-night-edit="'+escapeHTML(n.id)+'">Edit</button><button type="button" class="secondaryAction" data-night-delete="'+escapeHTML(n.id)+'">Delete</button></div></div>';}).join(''):'<p class="muted">No saved night stops this month.</p>';
+  }
+  function nightAmounts(rank,rate){
+    var pay=rank==='CPT'||rank==='FO'?roundMoney(rate*2):36.07;
+    return {pay:pay,exempt:Math.min(25,pay)};
+  }
+  function nightData(){
+    var rank=el('nightRank').value,rate=Number(el('nightRate').value),date=el('nightDate').value;
+    if(!validDate(date)||!ranks[rank]||el('nightRate').value===''||!Number.isFinite(rate)||rate<0)return null;
+    var a=nightAmounts(rank,rate);
+    return {id:editingNightId||uid(),date:date,rank:rank,rate:rate,location:el('nightLocation').value.trim().slice(0,80),pay:a.pay,exempt:a.exempt};
+  }
+  function previewNight(){
+    var cabin=!!ranks[el('nightRank').value].published;
+    el('nightRate').disabled=cabin;
+    var n=nightData();
+    el('nightPreview').textContent=n?money(n.pay)+' gross · '+money(n.exempt)+' exempt from tax and NI · '+money(roundMoney(n.pay-n.exempt))+' subject to tax and NI':'Enter a valid date and nominal rate.';
+  }
+  function showNight(record){
+    editingNightId=record?record.id:'';
+    el('nightDate').value=record?record.date:today();
+    el('nightLocation').value=record?record.location:'';
+    el('nightRank').value=record?record.rank:rankInput.value;
+    el('nightRate').value=record?record.rate:(validRate()?Number(rateInput.value):ranks[rankInput.value].rate);
+    el('nightMsg').textContent=record?'Editing a saved night stop. Save to apply changes.':'';
+    el('saveNight').textContent=record?'Update night stop':'Save night stop';
+    el('nightStopForm').hidden=false;el('addNight').setAttribute('aria-expanded','true');previewNight();
+    el('nightStopForm').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function saveNight(){
+    var n=nightData();if(!n){el('nightMsg').textContent='Nothing saved. Enter a valid date and nominal rate.';return;}
+    var next=JSON.parse(JSON.stringify(ledger));
+    var idx=next.nightStops.findIndex(function(old){return old.id===n.id;});
+    if(idx<0)next.nightStops.push(n);else next.nightStops[idx]=n;
+    if(!persist(next)){el('nightMsg').textContent='Night stop could not be saved. Check the storage message above.';return;}
+    editingNightId=n.id;el('saveNight').textContent='Update night stop';monthInput.value=n.date.slice(0,7);loadMonth();
+    el('nightMsg').textContent='Night stop saved. Saving again updates this entry. Tap New night stop to enter another night.';
+  }
+  el('nightRank').addEventListener('change',function(){el('nightRate').value=ranks[el('nightRank').value].rate.toFixed(2);previewNight();});
+  el('nightRate').addEventListener('input',previewNight);el('nightDate').addEventListener('input',previewNight);
   function loadMonth(){
     var d=ledger.deductions[monthInput.value]||{};
     taxInput.value=d.tax===undefined?"":d.tax;niInput.value=d.ni===undefined?"":d.ni;renderMonth();
@@ -315,6 +387,25 @@
   });
   document.addEventListener("click",function(e){
     var b=e.target.closest("button");if(!b)return;
+    if(b.id==='addNight'||b.id==='newNight'){
+      if(!el('nightStopForm').hidden&&!confirm('Start a new night-stop entry? Unsaved night-stop changes will be discarded. Saved records remain.'))return;
+      showNight();return;
+    }
+    if(b.id==='saveNight'){saveNight();return;}
+    if(b.dataset.nightEdit){
+      var night=ledger.nightStops.find(function(n){return n.id===b.dataset.nightEdit;});if(!night)return;
+      if(!el('nightStopForm').hidden&&!confirm('Load this night stop? Unsaved night-stop changes will be discarded.'))return;
+      showNight(night);return;
+    }
+    if(b.dataset.nightDelete){
+      if(!confirm('Delete this saved night stop? This cannot be undone.'))return;
+      var updated=JSON.parse(JSON.stringify(ledger));updated.nightStops=updated.nightStops.filter(function(n){return n.id!==b.dataset.nightDelete;});
+      if(persist(updated)){
+        if(editingNightId===b.dataset.nightDelete){editingNightId='';el('nightStopForm').hidden=true;el('addNight').setAttribute('aria-expanded','false');}
+        renderMonth();el('flightMsg').textContent='Saved night stop deleted.';
+      }else el('nightMsg').textContent='Could not delete night stop. It is still saved.';
+      return;
+    }
     if(b.classList.contains("remove")){b.closest(".sector").remove();update();return;}
     if(b.id==="addSector"){
       var last=sectorHost.lastElementChild,base=baseInput.value,to=last?cleanCode(last.querySelector(".to").value):"",date=last?last.querySelector(".flightDate").value:today();
